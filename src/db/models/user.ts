@@ -47,6 +47,49 @@ export async function getAllActiveUsers(): Promise<User[]> {
   return result.rows;
 }
 
+export async function getUsersForAdmin(
+  limit: number = 20,
+  championshipId?: number
+): Promise<User[]> {
+  const result = await pool.query<User>(
+    `SELECT * FROM users
+     WHERE ($1::INTEGER IS NULL OR championship_id = $1)
+     ORDER BY registered_at DESC
+     LIMIT $2`,
+    [championshipId || null, limit]
+  );
+  return result.rows;
+}
+
+export async function getUserStats(): Promise<{
+  total: number;
+  active: number;
+  inactive: number;
+  with_championship: number;
+}> {
+  const result = await pool.query<{
+    total: string;
+    active: string;
+    inactive: string;
+    with_championship: string;
+  }>(
+    `SELECT
+       COUNT(*) AS total,
+       COUNT(*) FILTER (WHERE is_active = TRUE) AS active,
+       COUNT(*) FILTER (WHERE is_active = FALSE) AS inactive,
+       COUNT(*) FILTER (WHERE championship_id IS NOT NULL) AS with_championship
+     FROM users`
+  );
+
+  const row = result.rows[0];
+  return {
+    total: Number(row.total),
+    active: Number(row.active),
+    inactive: Number(row.inactive),
+    with_championship: Number(row.with_championship),
+  };
+}
+
 export async function markUserInactive(telegramId: number): Promise<void> {
   await pool.query(
     'UPDATE users SET is_active = FALSE WHERE telegram_id = $1',

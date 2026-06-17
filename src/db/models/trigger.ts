@@ -62,3 +62,32 @@ export async function getTriggersForChampionship(championshipId: number): Promis
   );
   return result.rows;
 }
+
+export async function getTriggerStats(): Promise<{
+  total: number;
+  pending: number;
+  fired: number;
+  due: number;
+}> {
+  const result = await pool.query<{
+    total: string;
+    pending: string;
+    fired: string;
+    due: string;
+  }>(
+    `SELECT
+       COUNT(*) AS total,
+       COUNT(*) FILTER (WHERE fired_at IS NULL) AS pending,
+       COUNT(*) FILTER (WHERE fired_at IS NOT NULL) AS fired,
+       COUNT(*) FILTER (WHERE fired_at IS NULL AND scheduled_at <= NOW()) AS due
+     FROM triggers`
+  );
+
+  const row = result.rows[0];
+  return {
+    total: Number(row.total),
+    pending: Number(row.pending),
+    fired: Number(row.fired),
+    due: Number(row.due),
+  };
+}

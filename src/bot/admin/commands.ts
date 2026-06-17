@@ -1,8 +1,10 @@
 import { Context, Telegraf } from 'telegraf';
 import { fireManualTrigger, broadcastMessage } from '../../triggers/triggerService';
-import { createChampionship } from '../../db/models/championship';
+import { createChampionship, getChampionshipAdminStats } from '../../db/models/championship';
 import { createWebinar } from '../../db/models/webinar';
-import { createTrigger } from '../../db/models/trigger';
+import { createTrigger, getTriggersForChampionship, getTriggerStats } from '../../db/models/trigger';
+import { getSentMessageStats } from '../../db/models/sentMessage';
+import { getUsersForAdmin, getUserStats } from '../../db/models/user';
 import { adminOnly } from './middleware';
 
 const MSK = 'Europe/Moscow';
@@ -26,7 +28,13 @@ export function registerAdminCommands(bot: Telegraf): void {
 /admin fire_trigger <trigger_key> <championship_id>
 /admin add_championship
 /admin add_webinar
-/admin broadcast <message>`
+/admin broadcast <message>
+
+Просмотр:
+/admin users [championship_id]
+/admin championships
+/admin triggers <championship_id>
+/admin stats`
       );
       return;
     }
@@ -43,6 +51,18 @@ export function registerAdminCommands(bot: Telegraf): void {
         break;
       case 'broadcast':
         await handleBroadcast(ctx, args.slice(1).join(' '));
+        break;
+      case 'users':
+        await handleUsers(ctx, args.slice(1));
+        break;
+      case 'championships':
+        await handleChampionships(ctx);
+        break;
+      case 'triggers':
+        await handleTriggers(ctx, args.slice(1));
+        break;
+      case 'stats':
+        await handleStats(ctx);
         break;
       default:
         await ctx.reply('❌ Неизвестная команда. Используй /admin для справки.');
@@ -107,6 +127,121 @@ async function handleBroadcast(ctx: Context, message: string): Promise<void> {
 
   const count = await broadcastMessage(message);
   await ctx.reply(`✅ Рассылка запущена. Отправляется ${count} пользователям.`);
+}
+
+async function handleUsers(ctx: Context, args: string[]): Promise<void> {
+  const championshipId = args[0] ? parseInt(args[0], 10) : undefined;
+
+  if (args[0] && isNaN(championshipId!)) {
+    await ctx.reply('Использование: /admin users [championship_id]');
+    return;
+  }
+
+  const users = await getUsersForAdmin(20, championshipId);
+
+  if (users.length === 0) {
+    await ctx.reply('Пользователей пока нет.');
+    return;
+  }
+
+  const lines = users.map((user) => {
+    const username = user.username ? `@${user.username}` : 'без username';
+    const championship = user.championship_id ? `champ #${user.championship_id}` : 'без чемпионата';
+    const active = user.is_active ? 'активен' : 'неактивен';
+    return `• ${user.telegram_id} (${username}) — ${championship}, ${user.state}, ${active}`;
+  });
+
+  await ctx.reply(
+    `👥 Последние пользователи${championshipId ? ` чемпионата #${championshipId}` : ''}:\n\n${lines.join('\n')}\n\nПоказаны последние 20.`
+  );
+}
+
+async function handleChampionships(ctx: Context): Promise<void> {
+  const championships = await getChampionshipAdminStats();
+
+  if (championships.length === 0) {
+    await ctx.reply('Чемпионатов пока нет. Создай первый через /admin add_championship');
+    return;
+  }
+
+  const lines = championships.map((championship) => {
+    return [
+      `#${championship.id} ${championship.name}`,
+      `старт: ${formatMsk(championship.launch_date)}`,
+      `финиш: ${formatMsk(championship.end_date)}`,
+      `пользователей: ${championship.users_count}`,
+      `триггеров: ${championship.triggers_count}`,
+    ].join('\n');
+  });
+
+  await ctx.reply(`🏆 Чемпионаты:\n\n${lines.join('\n\n')}`);
+}
+
+async function handleTriggers(ctx: Context, args: string[]): Promise<void> {
+  if (!args[0]) {
+    await ctx.reply('Использование: /admin triggers <championship_id>');
+    return;
+  }
+
+  const championshipId = parseInt(args[0], 10);
+  if (isNaN(championshipId)) {
+    await ctx.reply('❌ championship_id должен быть числом');
+    return;
+  }
+
+  const triggers = await getTriggersForChampionship(championshipId);
+
+  if (triggers.length === 0) {
+    await ctx.reply(`Триггеров для чемпионата #${championshipId} пока нет.`);
+    return;
+  }
+
+  const lines = triggers.map((trigger) => {
+    const status = trigger.fired_at ? `отправлен ${formatMsk(trigger.fired_at)}` : 'ожидает';
+    const scheduled = trigger.scheduled_at ? formatMsk(trigger.scheduled_at) : 'без расписания';
+    return `• ${trigger.trigger_key}\n  ${trigger.name}\n  когда: ${scheduled}\n  статус: ${status}`;
+  });
+
+  await ctx.reply(`⏰ Триггеры чемпионата #${championshipId}:\n\n${lines.join('\n\n')}`);
+}
+
+async function handleStats(ctx: Context): Promise<void> {
+  const [users, triggers, messages] = await Promise.all([
+    getUserStats(),
+    getTriggerStats(),
+    getSentMessageStats(),
+  ]);
+
+  await ctx.reply(
+    `📊 Статистика бота:
+
+Пользователи:
+• всего: ${users.total}
+• активные: ${users.active}
+• неактивные: ${users.inactive}
+• с чемпионатом: ${users.with_championship}
+
+Триггеры:
+• всего: ${triggers.total}
+• ожидают: ${triggers.pending}
+• отправлены: ${triggers.fired}
+• просрочены и ждут обработки: ${triggers.due}
+
+Сообщения:
+• всего отправлено: ${messages.total}
+• за 24 часа: ${messages.last_24h}`
+  );
+}
+
+function formatMsk(value: Date): string {
+  return new Date(value).toLocaleString('ru-RU', {
+    timeZone: MSK,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
 }
 
 async function processWizardStep(ctx: Context & { message: { text: string } }, session: AdminSession): Promise<void> {

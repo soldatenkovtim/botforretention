@@ -40,3 +40,24 @@ export async function recordSentMessage(
     [telegramId, triggerKey, championshipId, webinarId]
   );
 }
+
+export async function getSentMessageStats(): Promise<{
+  total: number;
+  last_24h: number;
+}> {
+  const result = await pool.query<{
+    total: string;
+    last_24h: string;
+  }>(
+    `SELECT
+       COUNT(*) AS total,
+       COUNT(*) FILTER (WHERE sent_at >= NOW() - INTERVAL '24 hours') AS last_24h
+     FROM sent_messages`
+  );
+
+  const row = result.rows[0];
+  return {
+    total: Number(row.total),
+    last_24h: Number(row.last_24h),
+  };
+}
