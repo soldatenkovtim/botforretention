@@ -17,6 +17,10 @@ interface AdminSession {
 const sessions = new Map<number, AdminSession>();
 
 export function registerAdminCommands(bot: Telegraf): void {
+  bot.command('users', adminOnly, async (ctx) => {
+    await handleUsers(ctx, []);
+  });
+
   bot.command('admin', adminOnly, async (ctx) => {
     const args = ctx.message.text.split(' ').slice(1);
     const subcommand = args[0];
@@ -31,6 +35,7 @@ export function registerAdminCommands(bot: Telegraf): void {
 /admin broadcast <message>
 
 Просмотр:
+/users
 /admin users [championship_id]
 /admin championships
 /admin triggers <championship_id>
@@ -133,11 +138,11 @@ async function handleUsers(ctx: Context, args: string[]): Promise<void> {
   const championshipId = args[0] ? parseInt(args[0], 10) : undefined;
 
   if (args[0] && isNaN(championshipId!)) {
-    await ctx.reply('Использование: /admin users [championship_id]');
+    await ctx.reply('Использование: /users или /admin users [championship_id]');
     return;
   }
 
-  const users = await getUsersForAdmin(20, championshipId);
+  const users = await getUsersForAdmin(null, championshipId);
 
   if (users.length === 0) {
     await ctx.reply('Пользователей пока нет.');
@@ -151,8 +156,10 @@ async function handleUsers(ctx: Context, args: string[]): Promise<void> {
     return `• ${user.telegram_id} (${username}) — ${championship}, ${user.state}, ${active}`;
   });
 
-  await ctx.reply(
-    `👥 Последние пользователи${championshipId ? ` чемпионата #${championshipId}` : ''}:\n\n${lines.join('\n')}\n\nПоказаны последние 20.`
+  await replyInChunks(
+    ctx,
+    `👥 Пользователи бота${championshipId ? ` в чемпионате #${championshipId}` : ''}: ${users.length}\n\n`,
+    lines
   );
 }
 
@@ -242,6 +249,29 @@ function formatMsk(value: Date): string {
     hour: '2-digit',
     minute: '2-digit',
   });
+}
+
+async function replyInChunks(
+  ctx: Context,
+  header: string,
+  lines: string[],
+  maxLength: number = 3500
+): Promise<void> {
+  let chunk = header;
+
+  for (const line of lines) {
+    const next = `${chunk}${line}\n`;
+    if (next.length > maxLength) {
+      await ctx.reply(chunk.trim());
+      chunk = `${line}\n`;
+      continue;
+    }
+    chunk = next;
+  }
+
+  if (chunk.trim()) {
+    await ctx.reply(chunk.trim());
+  }
 }
 
 async function processWizardStep(ctx: Context & { message: { text: string } }, session: AdminSession): Promise<void> {

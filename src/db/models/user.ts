@@ -48,9 +48,19 @@ export async function getAllActiveUsers(): Promise<User[]> {
 }
 
 export async function getUsersForAdmin(
-  limit: number = 20,
+  limit: number | null = null,
   championshipId?: number
 ): Promise<User[]> {
+  if (limit === null) {
+    const result = await pool.query<User>(
+      `SELECT * FROM users
+       WHERE ($1::INTEGER IS NULL OR championship_id = $1)
+       ORDER BY registered_at DESC`,
+      [championshipId || null]
+    );
+    return result.rows;
+  }
+
   const result = await pool.query<User>(
     `SELECT * FROM users
      WHERE ($1::INTEGER IS NULL OR championship_id = $1)
