@@ -4,7 +4,7 @@ export interface SentMessage {
   id: number;
   telegram_id: number;
   trigger_key: string;
-  championship_id: number;
+  championship_id: number | null;
   webinar_id: number | null;
   sent_at: Date;
 }
@@ -12,14 +12,14 @@ export interface SentMessage {
 export async function hasMessageBeenSent(
   telegramId: number,
   triggerKey: string,
-  championshipId: number,
+  championshipId: number | null,
   webinarId: number | null = null
 ): Promise<boolean> {
   const result = await pool.query(
     `SELECT 1 FROM sent_messages
      WHERE telegram_id = $1
        AND trigger_key = $2
-       AND championship_id = $3
+       AND (championship_id = $3 OR ($3 IS NULL AND championship_id IS NULL))
        AND (webinar_id = $4 OR ($4 IS NULL AND webinar_id IS NULL))
      LIMIT 1`,
     [telegramId, triggerKey, championshipId, webinarId]
@@ -30,7 +30,7 @@ export async function hasMessageBeenSent(
 export async function recordSentMessage(
   telegramId: number,
   triggerKey: string,
-  championshipId: number,
+  championshipId: number | null,
   webinarId: number | null = null
 ): Promise<void> {
   await pool.query(

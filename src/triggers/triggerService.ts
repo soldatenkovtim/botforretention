@@ -1,5 +1,5 @@
 import { getDueTriggers, markTriggerFired } from '../db/models/trigger';
-import { getUsersByChampionship, getAllActiveUsers } from '../db/models/user';
+import { getNotificationRecipients, getAllActiveUsers } from '../db/models/user';
 import { hasMessageBeenSent } from '../db/models/sentMessage';
 import { getWebinarsNeedingReminder } from '../db/models/webinar';
 import { enqueueMessage, SendMessageJob } from '../queue/messageQueue';
@@ -47,7 +47,7 @@ export async function processDueTriggers(): Promise<void> {
       continue;
     }
 
-    const users = await getUsersByChampionship(trigger.championship_id);
+    const users = await getNotificationRecipients();
 
     for (const user of users) {
       const alreadySent = await hasMessageBeenSent(
@@ -81,7 +81,7 @@ export async function processWebinarReminders(): Promise<void> {
 
   for (const webinar of webinars) {
     const template = getWebinarReminderMessage(webinar);
-    const users = await getUsersByChampionship(webinar.championship_id);
+    const users = await getNotificationRecipients();
 
     for (const user of users) {
       const alreadySent = await hasMessageBeenSent(
@@ -116,7 +116,7 @@ export async function fireManualTrigger(
     throw new Error(`No template for trigger: ${triggerKey}`);
   }
 
-  const users = await getUsersByChampionship(championshipId);
+  const users = await getNotificationRecipients();
   let queued = 0;
 
   for (const user of users) {
@@ -155,7 +155,7 @@ export async function broadcastMessage(
       text,
       keyboard,
       triggerKey: `broadcast_${Date.now()}`,
-      championshipId: user.championship_id || 0,
+      championshipId: null,
     });
     queued++;
   }

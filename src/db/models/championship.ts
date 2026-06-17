@@ -52,7 +52,6 @@ export async function getChampionshipAdminStats(): Promise<Array<{
   launch_date: Date;
   end_date: Date;
   prize_pool: string;
-  users_count: number;
   triggers_count: number;
 }>> {
   const result = await pool.query<{
@@ -61,7 +60,6 @@ export async function getChampionshipAdminStats(): Promise<Array<{
     launch_date: Date;
     end_date: Date;
     prize_pool: string;
-    users_count: string;
     triggers_count: string;
   }>(
     `SELECT
@@ -70,10 +68,8 @@ export async function getChampionshipAdminStats(): Promise<Array<{
        c.launch_date,
        c.end_date,
        c.prize_pool,
-       COUNT(DISTINCT u.telegram_id) AS users_count,
        COUNT(DISTINCT t.id) AS triggers_count
      FROM championships c
-     LEFT JOIN users u ON u.championship_id = c.id
      LEFT JOIN triggers t ON t.championship_id = c.id
      GROUP BY c.id
      ORDER BY c.launch_date DESC`
@@ -81,7 +77,6 @@ export async function getChampionshipAdminStats(): Promise<Array<{
 
   return result.rows.map((row) => ({
     ...row,
-    users_count: Number(row.users_count),
     triggers_count: Number(row.triggers_count),
   }));
 }

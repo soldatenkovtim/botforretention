@@ -47,11 +47,13 @@ CREATE TABLE IF NOT EXISTS sent_messages (
   id SERIAL PRIMARY KEY,
   telegram_id BIGINT NOT NULL REFERENCES users(telegram_id),
   trigger_key VARCHAR(100) NOT NULL,
-  championship_id INTEGER NOT NULL REFERENCES championships(id),
+  championship_id INTEGER REFERENCES championships(id),
   webinar_id INTEGER REFERENCES webinar_events(id),
   sent_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   UNIQUE(telegram_id, trigger_key, championship_id, webinar_id)
 );
+
+ALTER TABLE sent_messages ALTER COLUMN championship_id DROP NOT NULL;
 
 CREATE INDEX IF NOT EXISTS idx_triggers_scheduled ON triggers(scheduled_at) WHERE fired_at IS NULL;
 CREATE INDEX IF NOT EXISTS idx_sent_messages_lookup ON sent_messages(telegram_id, trigger_key, championship_id);

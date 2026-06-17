@@ -18,7 +18,7 @@ const sessions = new Map<number, AdminSession>();
 
 export function registerAdminCommands(bot: Telegraf): void {
   bot.command('users', adminOnly, async (ctx) => {
-    await handleUsers(ctx, []);
+    await handleUsers(ctx);
   });
 
   bot.command('admin', adminOnly, async (ctx) => {
@@ -36,7 +36,7 @@ export function registerAdminCommands(bot: Telegraf): void {
 
 Просмотр:
 /users
-/admin users [championship_id]
+/admin users
 /admin championships
 /admin triggers <championship_id>
 /admin stats`
@@ -58,7 +58,7 @@ export function registerAdminCommands(bot: Telegraf): void {
         await handleBroadcast(ctx, args.slice(1).join(' '));
         break;
       case 'users':
-        await handleUsers(ctx, args.slice(1));
+        await handleUsers(ctx);
         break;
       case 'championships':
         await handleChampionships(ctx);
@@ -134,15 +134,8 @@ async function handleBroadcast(ctx: Context, message: string): Promise<void> {
   await ctx.reply(`✅ Рассылка запущена. Отправляется ${count} пользователям.`);
 }
 
-async function handleUsers(ctx: Context, args: string[]): Promise<void> {
-  const championshipId = args[0] ? parseInt(args[0], 10) : undefined;
-
-  if (args[0] && isNaN(championshipId!)) {
-    await ctx.reply('Использование: /users или /admin users [championship_id]');
-    return;
-  }
-
-  const users = await getUsersForAdmin(null, championshipId);
+async function handleUsers(ctx: Context): Promise<void> {
+  const users = await getUsersForAdmin(null);
 
   if (users.length === 0) {
     await ctx.reply('Пользователей пока нет.');
@@ -151,14 +144,14 @@ async function handleUsers(ctx: Context, args: string[]): Promise<void> {
 
   const lines = users.map((user) => {
     const username = user.username ? `@${user.username}` : 'без username';
-    const championship = user.championship_id ? `champ #${user.championship_id}` : 'без чемпионата';
     const active = user.is_active ? 'активен' : 'неактивен';
-    return `• ${user.telegram_id} (${username}) — ${championship}, ${user.state}, ${active}`;
+    const registeredAt = formatMsk(user.registered_at);
+    return `• ${user.telegram_id} (${username}) — ${active}, с ${registeredAt}`;
   });
 
   await replyInChunks(
     ctx,
-    `👥 Пользователи бота${championshipId ? ` в чемпионате #${championshipId}` : ''}: ${users.length}\n\n`,
+    `👥 Пользователи бота: ${users.length}\n\n`,
     lines
   );
 }
@@ -176,7 +169,7 @@ async function handleChampionships(ctx: Context): Promise<void> {
       `#${championship.id} ${championship.name}`,
       `старт: ${formatMsk(championship.launch_date)}`,
       `финиш: ${formatMsk(championship.end_date)}`,
-      `пользователей: ${championship.users_count}`,
+      `аудитория: все активные пользователи бота`,
       `триггеров: ${championship.triggers_count}`,
     ].join('\n');
   });
@@ -226,7 +219,6 @@ async function handleStats(ctx: Context): Promise<void> {
 • всего: ${users.total}
 • активные: ${users.active}
 • неактивные: ${users.inactive}
-• с чемпионатом: ${users.with_championship}
 
 Триггеры:
 • всего: ${triggers.total}

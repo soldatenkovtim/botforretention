@@ -14,7 +14,7 @@ export interface SendMessageJob {
   text: string;
   keyboard: { text: string; url: string }[][];
   triggerKey: string;
-  championshipId: number;
+  championshipId: number | null;
   webinarId?: number | null;
 }
 

@@ -40,6 +40,13 @@ export async function getUsersByChampionship(championshipId: number): Promise<Us
   return result.rows;
 }
 
+export async function getNotificationRecipients(): Promise<User[]> {
+  const result = await pool.query<User>(
+    'SELECT * FROM users WHERE is_active = TRUE ORDER BY registered_at DESC'
+  );
+  return result.rows;
+}
+
 export async function getAllActiveUsers(): Promise<User[]> {
   const result = await pool.query<User>(
     'SELECT * FROM users WHERE is_active = TRUE'
@@ -49,24 +56,20 @@ export async function getAllActiveUsers(): Promise<User[]> {
 
 export async function getUsersForAdmin(
   limit: number | null = null,
-  championshipId?: number
 ): Promise<User[]> {
   if (limit === null) {
     const result = await pool.query<User>(
       `SELECT * FROM users
-       WHERE ($1::INTEGER IS NULL OR championship_id = $1)
-       ORDER BY registered_at DESC`,
-      [championshipId || null]
+       ORDER BY registered_at DESC`
     );
     return result.rows;
   }
 
   const result = await pool.query<User>(
     `SELECT * FROM users
-     WHERE ($1::INTEGER IS NULL OR championship_id = $1)
      ORDER BY registered_at DESC
-     LIMIT $2`,
-    [championshipId || null, limit]
+     LIMIT $1`,
+    [limit]
   );
   return result.rows;
 }
@@ -75,19 +78,16 @@ export async function getUserStats(): Promise<{
   total: number;
   active: number;
   inactive: number;
-  with_championship: number;
 }> {
   const result = await pool.query<{
     total: string;
     active: string;
     inactive: string;
-    with_championship: string;
   }>(
     `SELECT
        COUNT(*) AS total,
        COUNT(*) FILTER (WHERE is_active = TRUE) AS active,
-       COUNT(*) FILTER (WHERE is_active = FALSE) AS inactive,
-       COUNT(*) FILTER (WHERE championship_id IS NOT NULL) AS with_championship
+       COUNT(*) FILTER (WHERE is_active = FALSE) AS inactive
      FROM users`
   );
 
@@ -96,7 +96,6 @@ export async function getUserStats(): Promise<{
     total: Number(row.total),
     active: Number(row.active),
     inactive: Number(row.inactive),
-    with_championship: Number(row.with_championship),
   };
 }
 
