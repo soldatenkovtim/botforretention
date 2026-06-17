@@ -8,6 +8,13 @@ import { getUsersForAdmin, getUserStats } from '../../db/models/user';
 import { adminOnly } from './middleware';
 
 const MSK = 'Europe/Moscow';
+const TRIGGER_HELP = `Доступные trigger_key:
+• pre_launch_3d — за 3 дня до старта
+• pre_launch_1d — за 1 день до старта
+• pre_launch_start — старт чемпионата
+• weekly_leaderboard_update — еженедельный лидерборд
+• mid_champ_early_selection — середина чемпионата
+• champ_closed_results — финальные результаты`;
 
 interface AdminSession {
   step: string;
@@ -29,10 +36,23 @@ export function registerAdminCommands(bot: Telegraf): void {
       await ctx.reply(
         `🔐 Админ-панель:
 
-/admin fire_trigger <trigger_key> <championship_id>
+Ручная рассылка триггера:
+/admin fire_trigger <trigger_key> [championship_id]
+
+Примеры:
+/admin fire_trigger pre_launch_3d
+/admin fire_trigger pre_launch_1d
+/admin fire_trigger pre_launch_start
+/admin fire_trigger weekly_leaderboard_update
+/admin fire_trigger mid_champ_early_selection
+/admin fire_trigger champ_closed_results
+
+Важно: ручной fire_trigger всегда отправляет заново, хоть 100 раз.
+
 /admin add_championship
 /admin add_webinar
 /admin broadcast <message>
+/admin trigger_keys
 
 Просмотр:
 /users
@@ -56,6 +76,9 @@ export function registerAdminCommands(bot: Telegraf): void {
         break;
       case 'broadcast':
         await handleBroadcast(ctx, args.slice(1).join(' '));
+        break;
+      case 'trigger_keys':
+        await ctx.reply(TRIGGER_HELP);
         break;
       case 'users':
         await handleUsers(ctx);
@@ -85,22 +108,34 @@ export function registerAdminCommands(bot: Telegraf): void {
 }
 
 async function handleFireTrigger(ctx: Context, args: string[]): Promise<void> {
-  if (args.length < 2) {
-    await ctx.reply('Использование: /admin fire_trigger <trigger_key> <championship_id>');
+  if (args.length < 1) {
+    await ctx.reply(
+      `Использование: /admin fire_trigger <trigger_key> [championship_id]
+
+Пример:
+/admin fire_trigger pre_launch_3d
+
+${TRIGGER_HELP}`
+    );
     return;
   }
 
   const [triggerKey, champIdStr] = args;
-  const championshipId = parseInt(champIdStr, 10);
+  const championshipId = champIdStr ? parseInt(champIdStr, 10) : null;
 
-  if (isNaN(championshipId)) {
-    await ctx.reply('❌ championship_id должен быть числом');
+  if (champIdStr && isNaN(championshipId!)) {
+    await ctx.reply('❌ championship_id должен быть числом. Можно вообще не указывать его.');
     return;
   }
 
   try {
     const count = await fireManualTrigger(triggerKey, championshipId);
-    await ctx.reply(`✅ Триггер "${triggerKey}" запущен. Отправляется ${count} пользователям.`);
+    await ctx.reply(
+      `✅ Ручной триггер "${triggerKey}" запущен.
+
+Получатели: ${count} активных пользователей бота.
+Повторный запуск этой же команды снова отправит сообщение.`
+    );
   } catch (error: any) {
     await ctx.reply(`❌ Ошибка: ${error.message}`);
   }

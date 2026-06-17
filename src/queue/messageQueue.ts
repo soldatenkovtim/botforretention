@@ -16,6 +16,7 @@ export interface SendMessageJob {
   triggerKey: string;
   championshipId: number | null;
   webinarId?: number | null;
+  dispatchId?: string;
 }
 
 export function initMessageQueue(redisUrl: string, bot: Telegraf) {
@@ -85,6 +86,7 @@ export async function enqueueMessage(job: SendMessageJob): Promise<void> {
     job.triggerKey,
     job.championshipId ?? 'global',
     job.webinarId ?? 'none',
+    job.dispatchId ?? 'auto',
   ].join(':');
 
   await queue.add('send', job, {
