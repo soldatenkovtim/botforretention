@@ -1,0 +1,47 @@
+import { pool } from '../pool';
+
+export interface Championship {
+  id: number;
+  name: string;
+  launch_date: Date;
+  end_date: Date;
+  prize_pool: string;
+  created_at: Date;
+}
+
+export async function createChampionship(
+  name: string,
+  launchDate: Date,
+  endDate: Date,
+  prizePool: string = '300 000 ₽'
+): Promise<Championship> {
+  const result = await pool.query<Championship>(
+    `INSERT INTO championships (name, launch_date, end_date, prize_pool)
+     VALUES ($1, $2, $3, $4)
+     RETURNING *`,
+    [name, launchDate, endDate, prizePool]
+  );
+  return result.rows[0];
+}
+
+export async function getChampionshipById(id: number): Promise<Championship | null> {
+  const result = await pool.query<Championship>(
+    'SELECT * FROM championships WHERE id = $1',
+    [id]
+  );
+  return result.rows[0] || null;
+}
+
+export async function getActiveChampionships(): Promise<Championship[]> {
+  const result = await pool.query<Championship>(
+    'SELECT * FROM championships WHERE end_date > NOW() ORDER BY launch_date ASC'
+  );
+  return result.rows;
+}
+
+export async function getAllChampionships(): Promise<Championship[]> {
+  const result = await pool.query<Championship>(
+    'SELECT * FROM championships ORDER BY launch_date DESC'
+  );
+  return result.rows;
+}
