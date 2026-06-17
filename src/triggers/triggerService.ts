@@ -1,4 +1,5 @@
 import { getDueTriggers, markTriggerFired } from '../db/models/trigger';
+import { getChampionshipById } from '../db/models/championship';
 import { getNotificationRecipients, getAllActiveUsers } from '../db/models/user';
 import { hasMessageBeenSent } from '../db/models/sentMessage';
 import { getWebinarsNeedingReminder } from '../db/models/webinar';
@@ -114,6 +115,11 @@ export async function fireManualTrigger(
   const template = getTemplateForTrigger(triggerKey);
   if (!template) {
     throw new Error(`No template for trigger: ${triggerKey}`);
+  }
+
+  const championship = await getChampionshipById(championshipId);
+  if (!championship) {
+    throw new Error(`Championship with id ${championshipId} not found`);
   }
 
   const users = await getNotificationRecipients();

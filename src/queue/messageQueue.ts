@@ -28,19 +28,17 @@ export function initMessageQueue(redisUrl: string, bot: Telegraf) {
     async (job) => {
       const { telegramId, text, keyboard, triggerKey, championshipId, webinarId } = job.data;
 
-      try {
-        const inlineKeyboard: InlineKeyboardMarkup = {
-          inline_keyboard: keyboard.map((row) =>
-            row.map((btn) => ({ text: btn.text, url: btn.url }))
-          ),
-        };
+      const inlineKeyboard: InlineKeyboardMarkup = {
+        inline_keyboard: keyboard.map((row) =>
+          row.map((btn) => ({ text: btn.text, url: btn.url }))
+        ),
+      };
 
+      try {
         await bot.telegram.sendMessage(telegramId, text, {
           parse_mode: 'HTML',
           reply_markup: inlineKeyboard,
         });
-
-        await recordSentMessage(telegramId, triggerKey, championshipId, webinarId || null);
       } catch (error: any) {
         if (error?.response?.error_code === 403) {
           await markUserInactive(telegramId);
@@ -52,6 +50,14 @@ export function initMessageQueue(redisUrl: string, bot: Telegraf) {
         }
         console.error(`Failed to send message to ${telegramId}:`, error.message);
         throw error;
+      }
+
+      try {
+        await recordSentMessage(telegramId, triggerKey, championshipId, webinarId || null);
+      } catch (error: any) {
+        // The Telegram message has already been delivered. Do not retry the job,
+        // otherwise the user may receive duplicate messages.
+        console.error(`Message sent to ${telegramId}, but delivery record failed:`, error.message);
       }
     },
     {
@@ -74,7 +80,15 @@ export function initMessageQueue(redisUrl: string, bot: Telegraf) {
 }
 
 export async function enqueueMessage(job: SendMessageJob): Promise<void> {
+  const jobId = [
+    job.telegramId,
+    job.triggerKey,
+    job.championshipId ?? 'global',
+    job.webinarId ?? 'none',
+  ].join(':');
+
   await queue.add('send', job, {
+    jobId,
     attempts: 3,
     backoff: {
       type: 'exponential',
