@@ -14,12 +14,12 @@ const envSchema = z.object({
   URL_RULES: z.string().url(),
   URL_DASHBOARD: z.string().url(),
   URL_LEADERBOARD: z.string().url(),
-  URL_ZIPLYME: z.string().url(),
+  URL_ZIPLIME: z.string().url(),
   URL_TRADEAPI_DOCS: z.string().url(),
   URL_RESULTS: z.string().url(),
   URL_CAREERS: z.string().url(),
   URL_BUGBOUNTY: z.string().url(),
-  URL_ZIPLYME_SUBMIT: z.string().url(),
+  URL_ZIPLIME_SUBMIT: z.string().url(),
 });
 
 const parsed = envSchema.safeParse(process.env);

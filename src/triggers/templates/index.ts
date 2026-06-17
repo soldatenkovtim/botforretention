@@ -38,7 +38,7 @@ export function getPreLaunch3dMessage(): MessageTemplate {
 
 Не откладывай на последний день 😉`,
     keyboard: [
-      [{ text: '🛠 Попробовать Зиплайм (без кода)', url: env.URL_ZIPLYME }],
+      [{ text: '🛠 Попробовать Зиплайм (без кода)', url: env.URL_ZIPLIME }],
       [{ text: '💻 Документация TradeAPI', url: env.URL_TRADEAPI_DOCS }],
       [{ text: '👥 Задать вопрос в чате', url: env.URL_COMMUNITY }],
     ],
@@ -78,7 +78,7 @@ export function getPreLaunchStartMessage(): MessageTemplate {
 
 Увидимся на лидерборде в следующий понедельник!`,
     keyboard: [
-      [{ text: '▶️ Запустить стратегию', url: env.URL_ZIPLYME }],
+      [{ text: '▶️ Запустить стратегию', url: env.URL_ZIPLIME }],
       [{ text: '📈 Смотреть лидерборд', url: env.URL_LEADERBOARD }],
     ],
   };
@@ -161,7 +161,7 @@ export function getChampClosedMessage(): MessageTemplate {
       [{ text: '🏅 Итоги и имена победителей', url: env.URL_RESULTS }],
       [{ text: '💼 Карьерный трек / Партнерство', url: env.URL_CAREERS }],
       [{ text: '🔄 Участвовать в багбаунти', url: env.URL_BUGBOUNTY }],
-      [{ text: '🔄 Поделиться идеей с Зиплайм', url: env.URL_ZIPLYME_SUBMIT }],
+      [{ text: '🔄 Поделиться идеей с Зиплайм', url: env.URL_ZIPLIME_SUBMIT }],
     ],
   };
 }
