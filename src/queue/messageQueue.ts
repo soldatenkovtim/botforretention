@@ -87,7 +87,7 @@ export async function enqueueMessage(job: SendMessageJob): Promise<void> {
     job.championshipId ?? 'global',
     job.webinarId ?? 'none',
     job.dispatchId ?? 'auto',
-  ].join(':');
+  ].join('__');
 
   await queue.add('send', job, {
     jobId,
