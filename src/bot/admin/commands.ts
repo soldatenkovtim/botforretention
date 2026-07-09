@@ -6,41 +6,59 @@ import { createTrigger, getTriggersForChampionship, getTriggerStats } from '../.
 import { getSentMessageStats } from '../../db/models/sentMessage';
 import { getUsersForAdmin, getUserStats } from '../../db/models/user';
 import { adminOnly } from './middleware';
+import {
+  getPreLaunch3dMessage,
+  getPreLaunch1dMessage,
+  getPreLaunchStartMessage,
+  getWeeklyLeaderboardMessage,
+  getStagnationAlertMessage,
+  getMidChampMessage,
+  getChampClosedMessage,
+} from '../../triggers/templates';
 
 const MSK = 'Europe/Moscow';
 
-const TRIGGER_HELP = `📋 Все триггеры и когда их отправлять:
+function buildTriggerHelp(): string {
+  const preview = (text: string, maxLen = 120): string => {
+    const firstLine = text.split('\n').filter((l) => l.trim()).slice(0, 3).join(' ').trim();
+    return firstLine.length > maxLen ? firstLine.slice(0, maxLen) + '…' : firstLine;
+  };
 
-1. pre_launch_3d
-   За 3 дня до старта.
-   Чек-лист готовности: открыть счёт, зайти в демосчёт, изучить TradeAPI, вступить в комьюнити.
+  const btnLabels = (keyboard: { text: string }[][]): string =>
+    keyboard.flat().map((b) => b.text).join(' | ');
 
-2. pre_launch_1d
-   За 1 день до старта.
-   Напоминание о механике, человеческом ревью, раннем отборе с 4-й недели.
+  const entries: { when: string; key: string; template: ReturnType<typeof getPreLaunch3dMessage> }[] = [
+    { when: 'За 3 дня до старта', key: 'pre_launch_3d', template: getPreLaunch3dMessage() },
+    { when: 'За 1 день до старта', key: 'pre_launch_1d', template: getPreLaunch1dMessage() },
+    { when: 'В день старта, 16:30 МСК', key: 'pre_launch_start', template: getPreLaunchStartMessage() },
+    {
+      when: 'Каждый понедельник, 16:30 МСК\n   ⚠️ Перед отправкой подставь реальные данные через /admin broadcast',
+      key: 'weekly_leaderboard_update',
+      template: getWeeklyLeaderboardMessage(),
+    },
+    {
+      when: 'Вторник — если у участника нет активности 7 дней',
+      key: 'stagnation_alert',
+      template: getStagnationAlertMessage(),
+    },
+    { when: '4-я неделя чемпионата', key: 'mid_champ_early_selection', template: getMidChampMessage() },
+    { when: 'После публикации финальных итогов', key: 'champ_closed_results', template: getChampClosedMessage() },
+  ];
 
-3. pre_launch_start
-   В день старта (16:30 МСК).
-   «Чемпионат открыт!» — первые шаги, лидерборд, инфраструктура.
+  const lines: string[] = ['📅 ПЛАН РАССЫЛОК — что когда отправлять\n'];
 
-4. weekly_leaderboard_update
-   Каждый понедельник в 16:30 МСК.
-   ⚠️ Перед отправкой обнови шаблон через /admin broadcast с реальными никнеймами и P/L.
+  entries.forEach(({ when, key, template }, i) => {
+    lines.push(
+      `${'─'.repeat(32)}\n` +
+      `${i + 1}️⃣  ${when}\n` +
+      `Команда: /admin fire_trigger ${key}\n\n` +
+      `Превью текста:\n«${preview(template.text)}»\n\n` +
+      `Кнопки: ${btnLabels(template.keyboard)}`
+    );
+  });
 
-5. stagnation_alert
-   Вторник, если участник не торговал 7 дней.
-   Пуш начать торговать: рынок двигается, результат без изменений.
-
-6. mid_champ_early_selection
-   4-я неделя чемпионата.
-   Ранний отбор начался. Акцент на ZipLime для пересборки стратегии.
-
-7. champ_closed_results
-   Сразу после публикации финальных итогов.
-   Итоги, багбаунти Зиплайм, идеи для платформы.
-
-Команда: /admin fire_trigger <номер из списка выше>
-Пример: /admin fire_trigger pre_launch_3d`;
+  return lines.join('\n\n');
+}
 
 const ADMIN_HELP = `🔐 Финам Коллаб — Админ-панель
 
@@ -53,7 +71,7 @@ const ADMIN_HELP = `🔐 Финам Коллаб — Админ-панель
   ⚠️ Всегда отправляет заново — даже если уже отправлялось.
 
 /admin trigger_keys
-  Показать список всех триггеров с описанием и временем отправки.
+  Показать план рассылок: когда, какая команда, превью текста и кнопок.
 
 /admin broadcast <текст>
   Отправить произвольный текст всем активным пользователям.
@@ -113,7 +131,7 @@ export function registerAdminCommands(bot: Telegraf): void {
         await handleBroadcast(ctx, args.slice(1).join(' '));
         break;
       case 'trigger_keys':
-        await ctx.reply(TRIGGER_HELP);
+        await ctx.reply(buildTriggerHelp());
         break;
       case 'users':
         await handleUsers(ctx);
@@ -144,9 +162,7 @@ export function registerAdminCommands(bot: Telegraf): void {
 
 async function handleFireTrigger(ctx: Context, args: string[]): Promise<void> {
   if (args.length < 1) {
-    await ctx.reply(
-      `Использование: /admin fire_trigger <trigger_key>\n\n${TRIGGER_HELP}`
-    );
+    await ctx.reply(`Использование: /admin fire_trigger <trigger_key>\n\n${buildTriggerHelp()}`);
     return;
   }
 
