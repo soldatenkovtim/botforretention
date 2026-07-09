@@ -6,7 +6,7 @@ import { handleLeaderboard } from './bot/commands/leaderboard';
 import { handleHelp } from './bot/commands/help';
 import { registerAdminCommands } from './bot/admin/commands';
 import { initMessageQueue, closeQueue } from './queue/messageQueue';
-import { startScheduler } from './scheduler/cron';
+import { getPrizesAndConditionsMessage } from './triggers/templates';
 
 async function main() {
   const bot = new Telegraf(env.BOT_TOKEN);
@@ -20,7 +20,11 @@ async function main() {
 
   registerAdminCommands(bot);
 
-  startScheduler();
+  bot.action('show_prizes', async (ctx) => {
+    const { text } = getPrizesAndConditionsMessage();
+    await ctx.answerCbQuery();
+    await ctx.reply(text, { parse_mode: 'HTML' });
+  });
 
   bot.catch((err, ctx) => {
     console.error(`Error for ${ctx.updateType}:`, err);

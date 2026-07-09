@@ -8,6 +8,7 @@ import {
   getPreLaunch1dMessage,
   getPreLaunchStartMessage,
   getWeeklyLeaderboardMessage,
+  getStagnationAlertMessage,
   getWebinarReminderMessage,
   getMidChampMessage,
   getChampClosedMessage,
@@ -24,6 +25,8 @@ function getTemplateForTrigger(triggerKey: string): MessageTemplate | null {
       return getPreLaunchStartMessage();
     case 'weekly_leaderboard_update':
       return getWeeklyLeaderboardMessage();
+    case 'stagnation_alert':
+      return getStagnationAlertMessage();
     case 'mid_champ_early_selection':
       return getMidChampMessage();
     case 'champ_closed_results':
@@ -140,6 +143,7 @@ export async function broadcastMessage(
   text: string,
   keyboard: { text: string; url: string }[][] = []
 ): Promise<number> {
+  // keyboard is intentionally typed as URL-only here since broadcast is admin-composed text
   const users = await getAllActiveUsers();
   let queued = 0;
 

@@ -11,9 +11,14 @@ export async function handleStart(ctx: Context): Promise<void> {
   const { text, keyboard } = getLaunchBotMessage();
 
   await ctx.reply(text, {
+    parse_mode: 'HTML',
     reply_markup: {
       inline_keyboard: keyboard.map((row) =>
-        row.map((btn) => ({ text: btn.text, url: btn.url }))
+        row.map((btn) =>
+          btn.callback_data
+            ? { text: btn.text, callback_data: btn.callback_data }
+            : { text: btn.text, url: btn.url! }
+        )
       ),
     },
   });

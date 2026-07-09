@@ -9,10 +9,16 @@ const QUEUE_NAME = 'telegram-messages';
 let queue: Queue;
 let worker: Worker;
 
+export interface KeyboardButton {
+  text: string;
+  url?: string;
+  callback_data?: string;
+}
+
 export interface SendMessageJob {
   telegramId: number;
   text: string;
-  keyboard: { text: string; url: string }[][];
+  keyboard: KeyboardButton[][];
   triggerKey: string;
   championshipId: number | null;
   webinarId?: number | null;
@@ -31,7 +37,11 @@ export function initMessageQueue(redisUrl: string, bot: Telegraf) {
 
       const inlineKeyboard: InlineKeyboardMarkup = {
         inline_keyboard: keyboard.map((row) =>
-          row.map((btn) => ({ text: btn.text, url: btn.url }))
+          row.map((btn) =>
+            btn.callback_data
+              ? { text: btn.text, callback_data: btn.callback_data }
+              : { text: btn.text, url: btn.url! }
+          )
         ),
       };
 

@@ -12,8 +12,9 @@ const TRIGGER_HELP = `Доступные trigger_key:
 • pre_launch_3d — за 3 дня до старта
 • pre_launch_1d — за 1 день до старта
 • pre_launch_start — старт чемпионата
-• weekly_leaderboard_update — еженедельный лидерборд
-• mid_champ_early_selection — середина чемпионата
+• weekly_leaderboard_update — еженедельный лидерборд (понедельник)
+• stagnation_alert — нет активности 7 дней (вторник, условный)
+• mid_champ_early_selection — 4-я неделя, ранний отбор
 • champ_closed_results — финальные результаты`;
 
 interface AdminSession {

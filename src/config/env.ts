@@ -20,6 +20,10 @@ const envSchema = z.object({
   URL_CAREERS: z.string().url(),
   URL_BUGBOUNTY: z.string().url(),
   URL_ZIPLIME_SUBMIT: z.string().url(),
+  URL_OPEN_ACCOUNT: z.string().url(),
+  URL_DEMO_ACCOUNT: z.string().url(),
+  URL_BUGBOUNTY_ZIPLIME: z.string().url(),
+  URL_COMMUNITY_IDEAS: z.string().url(),
 });
 
 const parsed = envSchema.safeParse(process.env);
