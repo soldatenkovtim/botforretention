@@ -8,14 +8,75 @@ import { getUsersForAdmin, getUserStats } from '../../db/models/user';
 import { adminOnly } from './middleware';
 
 const MSK = 'Europe/Moscow';
-const TRIGGER_HELP = `Доступные trigger_key:
-• pre_launch_3d — за 3 дня до старта
-• pre_launch_1d — за 1 день до старта
-• pre_launch_start — старт чемпионата
-• weekly_leaderboard_update — еженедельный лидерборд (понедельник)
-• stagnation_alert — нет активности 7 дней (вторник, условный)
-• mid_champ_early_selection — 4-я неделя, ранний отбор
-• champ_closed_results — финальные результаты`;
+
+const TRIGGER_HELP = `📋 Все триггеры и когда их отправлять:
+
+1. pre_launch_3d
+   За 3 дня до старта.
+   Чек-лист готовности: открыть счёт, зайти в демосчёт, изучить TradeAPI, вступить в комьюнити.
+
+2. pre_launch_1d
+   За 1 день до старта.
+   Напоминание о механике, человеческом ревью, раннем отборе с 4-й недели.
+
+3. pre_launch_start
+   В день старта (16:30 МСК).
+   «Чемпионат открыт!» — первые шаги, лидерборд, инфраструктура.
+
+4. weekly_leaderboard_update
+   Каждый понедельник в 16:30 МСК.
+   ⚠️ Перед отправкой обнови шаблон через /admin broadcast с реальными никнеймами и P/L.
+
+5. stagnation_alert
+   Вторник, если участник не торговал 7 дней.
+   Пуш начать торговать: рынок двигается, результат без изменений.
+
+6. mid_champ_early_selection
+   4-я неделя чемпионата.
+   Ранний отбор начался. Акцент на ZipLime для пересборки стратегии.
+
+7. champ_closed_results
+   Сразу после публикации финальных итогов.
+   Итоги, багбаунти Зиплайм, идеи для платформы.
+
+Команда: /admin fire_trigger <номер из списка выше>
+Пример: /admin fire_trigger pre_launch_3d`;
+
+const ADMIN_HELP = `🔐 Финам Коллаб — Админ-панель
+
+━━━━━━━━━━━━━━━━━━━━
+📨 РАССЫЛКИ
+━━━━━━━━━━━━━━━━━━━━
+/admin fire_trigger <trigger_key>
+  Отправить шаблонное уведомление всем активным пользователям.
+  Пример: /admin fire_trigger pre_launch_3d
+  ⚠️ Всегда отправляет заново — даже если уже отправлялось.
+
+/admin trigger_keys
+  Показать список всех триггеров с описанием и временем отправки.
+
+/admin broadcast <текст>
+  Отправить произвольный текст всем активным пользователям.
+  Используй для еженедельного лидерборда с реальными данными.
+  Пример: /admin broadcast 📊 Итоги недели: 1. @user1 — +12.3% ...
+
+━━━━━━━━━━━━━━━━━━━━
+⚙️ СОЗДАНИЕ
+━━━━━━━━━━━━━━━━━━━━
+/admin add_championship
+  Создать новый чемпионат (название, даты, призовой фонд).
+
+/admin add_webinar
+  Добавить вебинар к чемпионату — за 24 часа бот пришлёт напоминание.
+
+━━━━━━━━━━━━━━━━━━━━
+📊 ПРОСМОТР
+━━━━━━━━━━━━━━━━━━━━
+/admin stats       — сводная статистика (юзеры, триггеры, сообщения)
+/admin championships — список чемпионатов с датами
+/admin triggers <id> — триггеры конкретного чемпионата и их статус
+/admin users       — список всех пользователей
+/users             — то же самое, короткая команда`;
 
 interface AdminSession {
   step: string;
@@ -34,34 +95,7 @@ export function registerAdminCommands(bot: Telegraf): void {
     const subcommand = args[0];
 
     if (!subcommand) {
-      await ctx.reply(
-        `🔐 Админ-панель:
-
-Ручная рассылка триггера:
-/admin fire_trigger <trigger_key> [championship_id]
-
-Примеры:
-/admin fire_trigger pre_launch_3d
-/admin fire_trigger pre_launch_1d
-/admin fire_trigger pre_launch_start
-/admin fire_trigger weekly_leaderboard_update
-/admin fire_trigger mid_champ_early_selection
-/admin fire_trigger champ_closed_results
-
-Важно: ручной fire_trigger всегда отправляет заново, хоть 100 раз.
-
-/admin add_championship
-/admin add_webinar
-/admin broadcast <message>
-/admin trigger_keys
-
-Просмотр:
-/users
-/admin users
-/admin championships
-/admin triggers <championship_id>
-/admin stats`
-      );
+      await ctx.reply(ADMIN_HELP);
       return;
     }
 
@@ -111,12 +145,7 @@ export function registerAdminCommands(bot: Telegraf): void {
 async function handleFireTrigger(ctx: Context, args: string[]): Promise<void> {
   if (args.length < 1) {
     await ctx.reply(
-      `Использование: /admin fire_trigger <trigger_key> [championship_id]
-
-Пример:
-/admin fire_trigger pre_launch_3d
-
-${TRIGGER_HELP}`
+      `Использование: /admin fire_trigger <trigger_key>\n\n${TRIGGER_HELP}`
     );
     return;
   }
