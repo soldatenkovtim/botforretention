@@ -29,12 +29,12 @@ function buildTriggerHelp(): string {
   const btnLabels = (keyboard: { text: string }[][]): string =>
     keyboard.flat().map((b) => b.text).join(' | ');
 
-  const entries: { when: string; key: string; template: ReturnType<typeof getPreLaunch3dMessage> }[] = [
+  const entries: { when: string; key: string; template: ReturnType<typeof getPreLaunch3dMessage> | null; wizardNote?: string }[] = [
     { when: 'За 3 дня до старта', key: 'pre_launch_3d', template: getPreLaunch3dMessage() },
     { when: 'За 1 день до старта', key: 'pre_launch_1d', template: getPreLaunch1dMessage() },
     { when: 'В день старта, 16:30 МСК', key: 'pre_launch_start', template: getPreLaunchStartMessage() },
     {
-      when: 'Каждый понедельник, 16:30 МСК\n   ⚠️ Перед отправкой подставь реальные данные через /admin broadcast',
+      when: 'Каждый понедельник, 16:30 МСК\n   🧙 Запускает визард — бот попросит топ-3 по каждой лиге',
       key: 'weekly_leaderboard_update',
       template: getWeeklyLeaderboardMessage(),
     },
@@ -43,19 +43,33 @@ function buildTriggerHelp(): string {
       key: 'stagnation_alert',
       template: getStagnationAlertMessage(),
     },
+    {
+      when: 'За 24 часа до вебинара\n   🧙 Запускает визард — бот попросит тему, спикера, время и ссылку',
+      key: 'webinar_reminder_24h',
+      template: null,
+      wizardNote:
+        '🎓 Завтра закрытый вебинар: "[Тема]"\n' +
+        'Спикер: [Имя, должность]\n\n' +
+        'Разберем: переобучение, кейсы участников, ваши вопросы.\n\n' +
+        '⏰ Завтра в [время] МСК. 🔔 Подключайтесь\n\n' +
+        'Кнопки: ▶️ Подключиться к вебинару | 👥 Перейти в комьюнити',
+    },
     { when: '4-я неделя чемпионата', key: 'mid_champ_early_selection', template: getMidChampMessage() },
     { when: 'После публикации финальных итогов', key: 'champ_closed_results', template: getChampClosedMessage() },
   ];
 
   const lines: string[] = ['📅 ПЛАН РАССЫЛОК — что когда отправлять\n'];
 
-  entries.forEach(({ when, key, template }, i) => {
+  entries.forEach(({ when, key, template, wizardNote }, i) => {
+    const previewBlock = wizardNote
+      ? `Структура сообщения:\n${wizardNote}`
+      : `Превью текста:\n«${preview(template!.text)}»\n\nКнопки: ${btnLabels(template!.keyboard)}`;
+
     lines.push(
       `${'─'.repeat(32)}\n` +
       `${i + 1}️⃣  ${when}\n` +
       `Команда: /admin fire_trigger ${key}\n\n` +
-      `Превью текста:\n«${preview(template.text)}»\n\n` +
-      `Кнопки: ${btnLabels(template.keyboard)}`
+      previewBlock
     );
   });
 
@@ -77,8 +91,7 @@ const ADMIN_HELP = `🔐 Финам Коллаб — Админ-панель
 
 /admin broadcast <текст>
   Отправить произвольный текст всем активным пользователям.
-  Используй для еженедельного лидерборда с реальными данными.
-  Пример: /admin broadcast 📊 Итоги недели: 1. @user1 — +12.3% ...
+  Используй для срочных объявлений или нестандартных сообщений.
 
 ━━━━━━━━━━━━━━━━━━━━
 ⚙️ СОЗДАНИЕ
