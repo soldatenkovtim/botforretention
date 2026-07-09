@@ -2,7 +2,7 @@ import { getDueTriggers, markTriggerFired } from '../db/models/trigger';
 import { getNotificationRecipients, getAllActiveUsers } from '../db/models/user';
 import { hasMessageBeenSent } from '../db/models/sentMessage';
 import { getWebinarsNeedingReminder } from '../db/models/webinar';
-import { enqueueMessage, SendMessageJob } from '../queue/messageQueue';
+import { enqueueMessage, SendMessageJob, KeyboardButton } from '../queue/messageQueue';
 import {
   getPreLaunch3dMessage,
   getPreLaunch1dMessage,
@@ -141,9 +141,8 @@ export async function fireManualTrigger(
 
 export async function broadcastMessage(
   text: string,
-  keyboard: { text: string; url: string }[][] = []
+  keyboard: KeyboardButton[][] = []
 ): Promise<number> {
-  // keyboard is intentionally typed as URL-only here since broadcast is admin-composed text
   const users = await getAllActiveUsers();
   let queued = 0;
 

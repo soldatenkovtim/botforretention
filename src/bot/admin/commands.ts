@@ -1,5 +1,6 @@
 import { Context, Telegraf } from 'telegraf';
 import { fireManualTrigger, broadcastMessage } from '../../triggers/triggerService';
+import { KeyboardButton } from '../../queue/messageQueue';
 import { createChampionship, getChampionshipAdminStats } from '../../db/models/championship';
 import { createWebinar } from '../../db/models/webinar';
 import { createTrigger, getTriggersForChampionship, getTriggerStats } from '../../db/models/trigger';
@@ -160,6 +161,16 @@ export function registerAdminCommands(bot: Telegraf): void {
   });
 }
 
+const LEAGUE_INPUT_HINT = `Введи 3 строки, каждая с новой строки.
+Формат: Никнейм, P/L
+
+Пример:
+Миша, +40%
+Носок, +30%
+Алефтинка, +1%
+
+Отправь /cancel чтобы прервать.`;
+
 async function handleFireTrigger(ctx: Context, args: string[]): Promise<void> {
   if (args.length < 1) {
     await ctx.reply(`Использование: /admin fire_trigger <trigger_key>\n\n${buildTriggerHelp()}`);
@@ -174,6 +185,11 @@ async function handleFireTrigger(ctx: Context, args: string[]): Promise<void> {
     return;
   }
 
+  if (triggerKey === 'weekly_leaderboard_update') {
+    await startLeaderboardWizard(ctx);
+    return;
+  }
+
   try {
     const count = await fireManualTrigger(triggerKey, championshipId);
     await ctx.reply(
@@ -185,6 +201,55 @@ async function handleFireTrigger(ctx: Context, args: string[]): Promise<void> {
   } catch (error: any) {
     await ctx.reply(`❌ Ошибка: ${error.message}`);
   }
+}
+
+async function startLeaderboardWizard(ctx: Context): Promise<void> {
+  const userId = ctx.from!.id;
+  sessions.set(userId, { step: 'leaderboard_alpha', data: {} });
+  await ctx.reply(
+    `📊 Еженедельный лидерборд — ввод данных\n\n` +
+    `Шаг 1 из 3: 🅰️ Альфа-лига\n\n${LEAGUE_INPUT_HINT}`
+  );
+}
+
+function parseLeagueEntries(text: string): string[] {
+  return text
+    .split('\n')
+    .map((l) => l.trim())
+    .filter((l) => l.length > 0)
+    .slice(0, 3)
+    .map((line, i) => {
+      const stripped = line.replace(/^\d+[.)]\s*/, '').trim();
+      const commaIdx = stripped.lastIndexOf(',');
+      if (commaIdx > 0) {
+        const name = stripped.slice(0, commaIdx).trim();
+        const pl = stripped.slice(commaIdx + 1).trim();
+        return `${i + 1}. ${name} — ${pl}`;
+      }
+      return `${i + 1}. ${stripped}`;
+    });
+}
+
+function buildLeaderboardText(alpha: string[], beta: string[], manual: string[]): string {
+  return `📊 Итоги недели: рейтинг обновлён
+
+🏆 ТОП-3 ПО ЛИГАМ
+
+🅰️ Альфа-лига. Номинация «В погоне за чистой альфой» — маркет-нейтральные стратегии
+${alpha.join('\n')}
+
+🅱️ Бета-лига. Номинация «Опережение бенчмарка» — направленные стратегии, обгоняющие рынок
+${beta.join('\n')}
+
+🖐️ Ручная лига. Номинация «Ручной трейдинг» — классическая торговля руками
+${manual.join('\n')}
+
+⚡ С 4-й недели команда квантов Финам начинает ранний отбор талантов. Мы оцениваем не только P/L но и стабильность, контроль просадки, дисциплину и качество исполнения.
+
+💰 Напоминаем о призах:
+• 900 000 ₽ — призовой фонд на брокерские счёта в Финам
+• Карьерные офферы в квант-команду для топ-перформеров
+• Интро к партнёрским фондам для авторов лучших стратегий`;
 }
 
 async function startAddChampionship(ctx: Context): Promise<void> {
@@ -358,6 +423,64 @@ async function processWizardStep(ctx: Context & { message: { text: string } }, s
   }
 
   switch (session.step) {
+    case 'leaderboard_alpha': {
+      const entries = parseLeagueEntries(text);
+      if (entries.length === 0) {
+        await ctx.reply('❌ Не удалось распознать данные. Попробуй ещё раз:\n\n' + LEAGUE_INPUT_HINT);
+        return;
+      }
+      session.data.alpha = entries;
+      session.step = 'leaderboard_beta';
+      await ctx.reply(`✅ Альфа-лига сохранена.\n\nШаг 2 из 3: 🅱️ Бета-лига\n\n${LEAGUE_INPUT_HINT}`);
+      break;
+    }
+
+    case 'leaderboard_beta': {
+      const entries = parseLeagueEntries(text);
+      if (entries.length === 0) {
+        await ctx.reply('❌ Не удалось распознать данные. Попробуй ещё раз:\n\n' + LEAGUE_INPUT_HINT);
+        return;
+      }
+      session.data.beta = entries;
+      session.step = 'leaderboard_manual';
+      await ctx.reply(`✅ Бета-лига сохранена.\n\nШаг 3 из 3: 🖐️ Ручная лига\n\n${LEAGUE_INPUT_HINT}`);
+      break;
+    }
+
+    case 'leaderboard_manual': {
+      const entries = parseLeagueEntries(text);
+      if (entries.length === 0) {
+        await ctx.reply('❌ Не удалось распознать данные. Попробуй ещё раз:\n\n' + LEAGUE_INPUT_HINT);
+        return;
+      }
+      session.data.manual = entries;
+      session.step = 'leaderboard_confirm';
+      const preview = buildLeaderboardText(session.data.alpha, session.data.beta, session.data.manual);
+      await ctx.reply(
+        `✅ Все данные собраны. Вот что получат пользователи:\n\n` +
+        `─────────────────────\n${preview}\n─────────────────────\n\n` +
+        `Напиши ДА чтобы отправить, или /cancel чтобы отменить.`
+      );
+      break;
+    }
+
+    case 'leaderboard_confirm': {
+      if (text.trim().toLowerCase() !== 'да') {
+        await ctx.reply('Жду ДА для отправки или /cancel для отмены.');
+        return;
+      }
+      const finalText = buildLeaderboardText(session.data.alpha, session.data.beta, session.data.manual);
+      const keyboard: KeyboardButton[][] = getWeeklyLeaderboardMessage().keyboard;
+      sessions.delete(userId);
+      try {
+        const count = await broadcastMessage(finalText, keyboard);
+        await ctx.reply(`✅ Лидерборд отправлен ${count} пользователям.`);
+      } catch (error: any) {
+        await ctx.reply(`❌ Ошибка отправки: ${error.message}`);
+      }
+      break;
+    }
+
     case 'champ_name':
       session.data.name = text;
       session.step = 'champ_launch_date';
