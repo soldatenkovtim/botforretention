@@ -7,6 +7,7 @@ import { createTrigger, getTriggersForChampionship, getTriggerStats } from '../.
 import { getSentMessageStats } from '../../db/models/sentMessage';
 import { getUsersForAdmin, getUserStats } from '../../db/models/user';
 import { adminOnly } from './middleware';
+import { env } from '../../config/env';
 import {
   getPreLaunch3dMessage,
   getPreLaunch1dMessage,
@@ -190,6 +191,11 @@ async function handleFireTrigger(ctx: Context, args: string[]): Promise<void> {
     return;
   }
 
+  if (triggerKey === 'webinar_reminder_24h') {
+    await startWebinarReminderWizard(ctx);
+    return;
+  }
+
   try {
     const count = await fireManualTrigger(triggerKey, championshipId);
     await ctx.reply(
@@ -228,6 +234,38 @@ function parseLeagueEntries(text: string): string[] {
       }
       return `${i + 1}. ${stripped}`;
     });
+}
+
+async function startWebinarReminderWizard(ctx: Context): Promise<void> {
+  const userId = ctx.from!.id;
+  sessions.set(userId, { step: 'webinar_reminder_topic', data: {} });
+  await ctx.reply(
+    `🎓 Напоминание о вебинаре — ввод данных\n\n` +
+    `Шаг 1 из 4: Тема вебинара\n\n` +
+    `Введи полное название, например:\nПуть стратегии: от идеи до торговли\n\n` +
+    `Отправь /cancel чтобы прервать.`
+  );
+}
+
+function buildWebinarReminderText(
+  topic: string,
+  speaker: string,
+  time: string,
+  link: string
+): string {
+  return `🎓 Завтра закрытый вебинар: "${topic}"
+
+Спикер: ${speaker}
+
+Разберем:
+• Как избежать переобучения на исторических данных
+• Разбор реальных кейсов участников чемпионата
+• Ответы на ваши вопросы
+
+💬 Задавайте вопросы до вебинара в ветке «Вопросы» в комьюнити. Автору лучшего вопроса подарок — мерч Финама или 15-минутный разбор стратегии с квантом Финама после эфира.
+
+⏰ Завтра в ${time} МСК.
+🔔 Подключайтесь`;
 }
 
 function buildLeaderboardText(alpha: string[], beta: string[], manual: string[]): string {
@@ -475,6 +513,83 @@ async function processWizardStep(ctx: Context & { message: { text: string } }, s
       try {
         const count = await broadcastMessage(finalText, keyboard);
         await ctx.reply(`✅ Лидерборд отправлен ${count} пользователям.`);
+      } catch (error: any) {
+        await ctx.reply(`❌ Ошибка отправки: ${error.message}`);
+      }
+      break;
+    }
+
+    case 'webinar_reminder_topic': {
+      session.data.topic = text.trim();
+      session.step = 'webinar_reminder_speaker';
+      await ctx.reply(
+        `✅ Тема сохранена.\n\nШаг 2 из 4: Спикер\n\nВведи имя и должность одной строкой, например:\nВячеслав Арбузов, Head of Quant, Финам`
+      );
+      break;
+    }
+
+    case 'webinar_reminder_speaker': {
+      session.data.speaker = text.trim();
+      session.step = 'webinar_reminder_time';
+      await ctx.reply(
+        `✅ Спикер сохранён.\n\nШаг 3 из 4: Время\n\nВведи время начала по МСК, например:\n19:00`
+      );
+      break;
+    }
+
+    case 'webinar_reminder_time': {
+      const timeRegex = /^\d{1,2}:\d{2}$/;
+      if (!timeRegex.test(text.trim())) {
+        await ctx.reply('❌ Формат времени неверный. Введи в формате ЧЧ:ММ, например: 19:00');
+        return;
+      }
+      session.data.time = text.trim();
+      session.step = 'webinar_reminder_link';
+      await ctx.reply(
+        `✅ Время сохранено.\n\nШаг 4 из 4: Ссылка на подключение\n\nВставь ссылку на Zoom, YouTube или другую платформу.\nОна появится отдельной кнопкой под сообщением.`
+      );
+      break;
+    }
+
+    case 'webinar_reminder_link': {
+      session.data.link = text.trim();
+      session.step = 'webinar_reminder_confirm';
+      const previewText = buildWebinarReminderText(
+        session.data.topic,
+        session.data.speaker,
+        session.data.time,
+        session.data.link
+      );
+      await ctx.reply(
+        `✅ Ссылка сохранена. Вот что получат пользователи:\n\n` +
+        `─────────────────────\n${previewText}\n─────────────────────\n\n` +
+        `Кнопки под сообщением:\n` +
+        `▶️ Подключиться к вебинару — ${session.data.link}\n` +
+        `👥 Перейти в комьюнити\n\n` +
+        `Напиши ДА чтобы отправить, или /cancel чтобы отменить.`
+      );
+      break;
+    }
+
+    case 'webinar_reminder_confirm': {
+      if (text.trim().toLowerCase() !== 'да') {
+        await ctx.reply('Жду ДА для отправки или /cancel для отмены.');
+        return;
+      }
+      const finalText = buildWebinarReminderText(
+        session.data.topic,
+        session.data.speaker,
+        session.data.time,
+        session.data.link
+      );
+      const keyboard: KeyboardButton[][] = [
+        [{ text: '▶️ Подключиться к вебинару', url: session.data.link }],
+        [{ text: '👥 Перейти в комьюнити', url: env.URL_COMMUNITY }],
+      ];
+      sessions.delete(userId);
+      try {
+        const count = await broadcastMessage(finalText, keyboard);
+        await ctx.reply(`✅ Напоминание о вебинаре отправлено ${count} пользователям.`);
       } catch (error: any) {
         await ctx.reply(`❌ Ошибка отправки: ${error.message}`);
       }
